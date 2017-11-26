@@ -37,7 +37,12 @@ public class CacheController {
 
         String uuid = new String();
         uuid = UUID.randomUUID().toString();
-        stringRedisTemplate.opsForValue().set(uuid, param);
+        try{
+            stringRedisTemplate.opsForValue().set(uuid, param);
+        }catch (Exception e){
+            logger.warn("执行redis异常:{}",e);
+            return new ResponseObj(QnResult.ERROR_INSIDE_EXCEPTION.getCode(),QnResult.ERROR_INSIDE_EXCEPTION.getMessage(),new RequestObj(param,"/setKey"));
+        }
         logger.debug("CacheController.setKey() key:{} param:{} ok.",uuid,param);
         return new ResponseObj(QnResult.SUCCESS.getCode(),QnResult.SUCCESS.getMessage(),uuid,new RequestObj(param,"/setKey"));
     }
