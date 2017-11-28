@@ -40,7 +40,8 @@ public class CacheController {
         try{
             stringRedisTemplate.opsForValue().set(uuid, param);
         }catch (Exception e){
-            logger.warn("执行redis异常:{}",e);
+            logger.warn("执行redis异常:{}",e.getMessage());
+            e.printStackTrace();
             return new ResponseObj(QnResult.ERROR_INSIDE_EXCEPTION.getCode(),QnResult.ERROR_INSIDE_EXCEPTION.getMessage(),new RequestObj(param,"/setKey"));
         }
         logger.debug("CacheController.setKey() key:{} param:{} ok.",uuid,param);
@@ -48,19 +49,26 @@ public class CacheController {
     }
 
     @RequestMapping(value = "/getKey",method = RequestMethod.GET)
-    public ResponseObj getKey(@RequestParam(name = "key" ,required = false )String key){
-        logger.debug("CacheController.getKey() key:{} start.",key);
-        if(StringUtils.isEmpty(key)){
-            logger.warn("[/getKey]获取param参数异常:参数为空.");
-            return new ResponseObj(QnResult.REQUEST_PARAM_EMPTY.getCode(),QnResult.REQUEST_PARAM_EMPTY.getMessage(),new RequestObj(key,"/getKey"));
+    public ResponseObj getKey(@RequestParam(name = "param" ,required = false )String param){
+        logger.debug("CacheController.getKey() param:{} start.",param);
+        if(StringUtils.isEmpty(param)){
+            logger.warn("[/getKey] param:{} 获取param参数异常:参数为空.",param);
+            return new ResponseObj(QnResult.REQUEST_PARAM_EMPTY.getCode(),QnResult.REQUEST_PARAM_EMPTY.getMessage(),new RequestObj(param,"/getKey"));
         }
-        String result = stringRedisTemplate.opsForValue().get(key);
+        String result = "";
+        try {
+            result = stringRedisTemplate.opsForValue().get(param);
+        }catch (Exception e){
+            logger.warn("执行redis异常:{}",e.getMessage());
+            e.printStackTrace();
+            return new ResponseObj(QnResult.ERROR_INSIDE_EXCEPTION.getCode(),QnResult.ERROR_INSIDE_EXCEPTION.getMessage(),new RequestObj(param,"/getKey"));
+        }
         if(StringUtils.isEmpty(result)){
-            logger.warn("[/getKey]获取param参数异常:参数为空.");
-            return new ResponseObj(QnResult.REQUEST_DATA_NOT_EXIST.getCode(),QnResult.REQUEST_DATA_NOT_EXIST.getMessage(),new RequestObj(key,"/getKey"));
+            logger.warn("[/getKey] param:{} 数据不存在.",param);
+            return new ResponseObj(QnResult.REQUEST_DATA_NOT_EXIST.getCode(),QnResult.REQUEST_DATA_NOT_EXIST.getMessage(),new RequestObj(param,"/getKey"));
 
         }
-        logger.debug("CacheController.getKey() key:{} param:{} start.",key,result);
-        return new ResponseObj(QnResult.SUCCESS.getCode(),QnResult.SUCCESS.getMessage(),result,new RequestObj(key,"/getKey"));
+        logger.debug("CacheController.getKey() param:{} param:{} start.",param,result);
+        return new ResponseObj(QnResult.SUCCESS.getCode(),QnResult.SUCCESS.getMessage(),result,new RequestObj(param,"/getKey"));
     }
 }
