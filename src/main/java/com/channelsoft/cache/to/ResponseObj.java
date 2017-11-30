@@ -4,6 +4,10 @@ package com.channelsoft.cache.to;
  * Created by yuanshun on 2017/11/25.
  */
 
+import com.channelsoft.cache.util.QNResult;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
+
 /**
  * 接口返回对象
  *
@@ -12,7 +16,9 @@ public class ResponseObj {
 
     private String code;
     private String message;
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     private String result;
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     private RequestObj requestObj;
 
     public RequestObj getRequestObj() {
@@ -24,6 +30,30 @@ public class ResponseObj {
     }
 
     public ResponseObj() {
+    }
+
+    /**
+     * 接收参数枚举类型
+     *
+     * @param qnResult
+     * @param requestObj
+     */
+    public ResponseObj(QNResult qnResult,RequestObj requestObj){
+        this.code = qnResult.getCode();
+        this.message = qnResult.getMessage();
+        this.requestObj = requestObj;
+    }
+
+    /**
+     * 接收参数枚举类型
+     *
+     * @param qnResult
+     * @param result
+     */
+    public ResponseObj(QNResult qnResult,String result){
+        this.code = qnResult.getCode();
+        this.message = qnResult.getMessage();
+        this.result = result;
     }
 
     public ResponseObj(String code, String message, RequestObj requestObj) {

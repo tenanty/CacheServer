@@ -1,21 +1,24 @@
 package com.channelsoft.cache.controller;
 
 import com.channelsoft.cache.to.RequestObj;
+import com.channelsoft.cache.to.RequestParamKV;
 import com.channelsoft.cache.to.ResponseObj;
+import com.channelsoft.cache.util.JacksonUtil;
 import com.channelsoft.cache.util.QNResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.util.StringUtils;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestMethod;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 /**
+ * 缓存控制层
+ * 负责对外提供http接口,进行数据的存储和获取操作
+ *
  * Created by yuanshun on 2017/11/19.
  */
 @RestController
@@ -27,48 +30,114 @@ public class CacheController {
     @Autowired
     private StringRedisTemplate stringRedisTemplate;
 
-    @RequestMapping(value = "/setKey",method = RequestMethod.POST)
-    public ResponseObj setKey(@RequestParam(name = "param",required = false)String param){
-        logger.debug("CacheController.setKey() param:{} start.",param);
-        if(StringUtils.isEmpty(param)){
-            logger.warn("[/setKey]获取param参数异常:参数为空.");
-            return new ResponseObj(QNResult.REQUEST_PARAM_EMPTY.getCode(),QNResult.REQUEST_PARAM_EMPTY.getMessage(),new RequestObj(param,"/setKey"));
-        }
+    /**
+     * 设置key和value数据到缓存中
+     * 设置key有效期为1天
+     *
+     * @param param
+     * @return
+     */
+    @RequestMapping(value = "/setKeyAndValue", method = RequestMethod.POST)
+    public ResponseObj setKeyAndValue(@RequestBody String param) {
+        logger.debug("CacheController.setKeyAndValue() param:{} start.", param);
 
-        String uuid = new String();
-        uuid = UUID.randomUUID().toString();
-        try{
-            stringRedisTemplate.opsForValue().set(uuid, param);
-        }catch (Exception e){
-            logger.warn("执行redis异常:{}",e.getMessage());
-            e.printStackTrace();
-            return new ResponseObj(QNResult.ERROR_INSIDE_EXCEPTION.getCode(),QNResult.ERROR_INSIDE_EXCEPTION.getMessage(),new RequestObj(param,"/setKey"));
+        if (StringUtils.isEmpty(param)) {
+            logger.warn("[/setKeyAndValue]获取param参数异常:参数为空.");
+            return new ResponseObj(QNResult.REQUEST_PARAM_EMPTY, new RequestObj(param, "/cache/setKeyAndValue"));
         }
-        logger.debug("CacheController.setKey() key:{} param:{} ok.",uuid,param);
-        return new ResponseObj(QNResult.SUCCESS.getCode(),QNResult.SUCCESS.getMessage(),uuid,new RequestObj(param,"/setKey"));
+        RequestParamKV requestParam = JacksonUtil.readValue(param, RequestParamKV.class);
+        if (requestParam == null) {
+            logger.warn("[/setKeyAndValue]获取param参数异常:格式非法.");
+            return new ResponseObj(QNResult.REQUEST_PARAM_TYPE_ERROR, new RequestObj(param, "/cache/setKeyAndValue"));
+        }
+        if (StringUtils.isEmpty(requestParam.getKey()) || StringUtils.isEmpty(requestParam.getValue())) {
+            logger.warn("[/setKeyAndValue]获取param参数异常:参数为空.");
+            return new ResponseObj(QNResult.REQUEST_PARAM_EMPTY, new RequestObj(param, "/cache/setKeyAndValue"));
+        }
+        try {
+            stringRedisTemplate.opsForValue().set(requestParam.getKey(), requestParam.getValue());
+            stringRedisTemplate.expire(requestParam.getKey(), 1, TimeUnit.DAYS);//设置key有效期为1天
+        } catch (Exception e) {
+            logger.warn("执行redis异常:{}", e.getMessage());
+            e.printStackTrace();
+            return new ResponseObj(QNResult.ERROR_INSIDE_EXCEPTION, new RequestObj(param, "/cache/setKeyAndValue"));
+        }
+        logger.debug("CacheController.setKeyAndValue() key:{} value:{} end.", requestParam.getKey(), requestParam.getValue());
+        return new ResponseObj(QNResult.SUCCESS, requestParam.getKey());
     }
 
-    @RequestMapping(value = "/getKey",method = RequestMethod.GET)
-    public ResponseObj getKey(@RequestParam(name = "param" ,required = false )String param){
-        logger.debug("CacheController.getKey() param:{} start.",param);
-        if(StringUtils.isEmpty(param)){
-            logger.warn("[/getKey] param:{} 获取param参数异常:参数为空.",param);
-            return new ResponseObj(QNResult.REQUEST_PARAM_EMPTY.getCode(),QNResult.REQUEST_PARAM_EMPTY.getMessage(),new RequestObj(param,"/getKey"));
+    /**
+     * 保存值到缓存中，并返回一个uuid供调用者需要时获取数据使用
+     * 设置key有效期为1天
+     *
+     * @param param
+     * @return 一个uuid的key, 供调用者保存
+     */
+    @RequestMapping(value = "/setValue", method = RequestMethod.POST)
+    public ResponseObj setValue(@RequestBody String param) {
+        logger.debug("CacheController.setValue() param:{} start.", param);
+        if (StringUtils.isEmpty(param)) {
+            logger.warn("[/setValue]获取param参数异常:参数为空.");
+            return new ResponseObj(QNResult.REQUEST_PARAM_EMPTY, new RequestObj(param, "/cache/setValue"));
+        }
+        RequestParamKV requestParam = JacksonUtil.readValue(param, RequestParamKV.class);
+        if (requestParam == null) {
+            logger.warn("[/setKeyAndValue]获取param参数异常:格式非法.");
+            return new ResponseObj(QNResult.REQUEST_PARAM_TYPE_ERROR, new RequestObj(param, "/cache/setValue"));
+        }
+        if (StringUtils.isEmpty(requestParam.getValue())) {
+            logger.warn("[/setValue]获取value参数异常:参数为空.");
+            return new ResponseObj(QNResult.REQUEST_PARAM_EMPTY, new RequestObj(param, "/cache/setValue"));
+        }
+        if (StringUtils.isEmpty(requestParam.getValue())) {
+            logger.warn("[/setKeyAndValue]获取param参数异常:参数为空.");
+            return new ResponseObj(QNResult.REQUEST_PARAM_EMPTY, new RequestObj(param, "/cache/setValue"));
+        }
+        String uuid = new String();
+        uuid = UUID.randomUUID().toString();
+        try {
+            stringRedisTemplate.opsForValue().set(uuid, requestParam.getValue());
+            stringRedisTemplate.expire(uuid, 1, TimeUnit.DAYS);//设置key有效期为1天
+        } catch (Exception e) {
+            logger.warn("执行redis异常:{}", e.getMessage());
+            e.printStackTrace();
+            return new ResponseObj(QNResult.ERROR_INSIDE_EXCEPTION, new RequestObj(param, "/cache/setValue"));
+        }
+        logger.debug("CacheController.setValue() key:{} value:{} end.", uuid, requestParam.getValue());
+        return new ResponseObj(QNResult.SUCCESS, uuid);
+    }
+
+    /**
+     * 获取特定key对应的值
+     *
+     * @param key
+     *
+     * @return
+     */
+    @RequestMapping(value = "/getValue", method = RequestMethod.GET)
+    public ResponseObj getValue(@RequestParam(name = "key",required = false) String key) {
+        logger.debug("CacheController.getValue() key:{} start.", key);
+
+        if (StringUtils.isEmpty(key)) {
+            logger.warn("[/getValue] key:{} 获取key参数异常:参数为空.", key);
+            return new ResponseObj(QNResult.REQUEST_PARAM_EMPTY, new RequestObj(key, "/cache/getValue"));
         }
         String result = "";
-        try {
-            result = stringRedisTemplate.opsForValue().get(param);
-        }catch (Exception e){
-            logger.warn("执行redis异常:{}",e.getMessage());
-            e.printStackTrace();
-            return new ResponseObj(QNResult.ERROR_INSIDE_EXCEPTION.getCode(),QNResult.ERROR_INSIDE_EXCEPTION.getMessage(),new RequestObj(param,"/getKey"));
-        }
-        if(StringUtils.isEmpty(result)){
-            logger.warn("[/getKey] param:{} 数据不存在.",param);
-            return new ResponseObj(QNResult.REQUEST_DATA_NOT_EXIST.getCode(),QNResult.REQUEST_DATA_NOT_EXIST.getMessage(),new RequestObj(param,"/getKey"));
 
+        try {
+            result = stringRedisTemplate.opsForValue().get(key);
+        } catch (Exception e) {
+            logger.warn("执行redis异常:{}", e.getMessage());
+            e.printStackTrace();
+            return new ResponseObj(QNResult.ERROR_INSIDE_EXCEPTION, new RequestObj(key, "/cache/getValue"));
         }
-        logger.debug("CacheController.getKey() param:{} param:{} start.",param,result);
-        return new ResponseObj(QNResult.SUCCESS.getCode(),QNResult.SUCCESS.getMessage(),result,new RequestObj(param,"/getKey"));
+
+        if (StringUtils.isEmpty(result)) {
+            logger.warn("[/getKey] key:{} 数据不存在.", key);
+            return new ResponseObj(QNResult.REQUEST_DATA_NOT_EXIST, new RequestObj(key, "/cache/getValue"));
+        }
+
+        logger.debug("CacheController.getValue() key:{} result:{} end.", key, result);
+        return new ResponseObj(QNResult.SUCCESS, result);
     }
 }
